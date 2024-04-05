@@ -1,0 +1,374 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{listings} % For including source code
+\usepackage{color}
+
+% Settings for inserting source code
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\title{Documentation for s21\_smart\_calc}
+\author{tytapory}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\part{General information}
+\section{Description}
+This document contains a description and documentation of the source code for a simple calculator capable of drawing graphs, implemented in the C programming language.
+
+\section{Structure}
+The calculator uses a main library for parsing and solving expressions: calc. To confirm that the expression is valid, the library expr\_validation\_and\_transformation.h is used; it is also used to transform the expression into a form understandable by the parser. This calculator also uses two auxiliary libraries to simplify operations: stack.h is used in calc to implement Dijkstra's algorithm, dictionary.h is used in expr\_validation\_and\_transformation for searching and replacing functions with short, single\-character versions. The code for the calculator's graphical part is in s21\_smart\_calc.c.\ tests.c contains unit tests.
+
+\part{Libraries}
+\setcounter{section}{0}
+\section{calc.h}
+\subsection{Description}
+The file contains code for computing expressions that have been properly transformed by the transform function of the expr\_validation\_and\_transformation library. In addition to the main function, it contains many internal functions to simplify understanding of the code.
+
+\subsection{Structures}
+The structure \texttt{calculationStacks\_t} is used for more convenient passing of stacks to internal functions.
+
+\subsection{Functions}
+\subsubsection{solve}
+\begin{lstlisting}[language=C]
+double solve(char *expression) {
+    s21_stack_t nums, signs;
+    calculationStacks_t calculationStacks;
+    double result;
+    initialize_calculation_stacks((int)strlen(expression), &calculationStacks, &nums, &signs);
+    solve_and_push_to_stack(expression, &calculationStacks);
+    result = stack_peek(calculationStacks.nums);
+    destroy_calculation_stacks(&calculationStacks);
+    return result;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: Solves the expression using Dijkstra's algorithm.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{char *expression}: pointer to the expression.
+\end{itemize}
+\textbf{Return Value}:
+\begin{itemize}
+    \item \texttt{double result}: the result of the computation.
+\end{itemize}
+
+\subsection{Important information}
+This is unsafe library. You need to validate all the parameters before sending them to this library.
+
+\section{expr\_validation\_and\_transformation.h}
+\subsection{Description}
+The file contains code for transforming and validation expressions.
+
+\subsection{Functions}
+\subsubsection{validate}
+\begin{lstlisting}[language=C]
+int validate(char *expression) {
+    return is_brackets_valid(expression) && is_signs_valid(expression) &&
+            is_numbers_valid(expression) && is_functions_valid(expression) &&
+            is_x_valid(expression) && is_at_least_one_num_or_x(expression);
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function runs a number of simple tests on the correctness of the function, respectively checking the overall correctness of the function.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{char *expression}: pointer to the expression.
+\end{itemize}
+\textbf{Return Value}:
+\begin{itemize}
+    \item \texttt{int result}: True if valid and False if not.
+\end{itemize}
+
+
+\subsubsection{transform}
+\begin{lstlisting}[language=C]
+void transform(char *expression) {
+    for (int i = 0; expression[i] != 0; i++) {
+        if (!is_expected_sign_or_num_or_bracket(expression[i]))
+        replase_full_func_with_short(expression, &i);
+        if (is_sign_prefix(expression, i)) add_zero_to_prefix_sign(expression, &i);
+        if (is_number(expression[i]) && i > 0 && expression[i - 1] == ')')
+        add_mul_sign(expression, &i);
+        if (expression[i] == '(' && i > 0 &&
+            (is_number(expression[i - 1]) || expression[i - 1] == ')'))
+        add_mul_sign(expression, &i);
+    }
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function runs a number of simple transformations, respectively transform the whole functions.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{char *expression}: pointer to the expression.
+\end{itemize}
+
+\section{dictionary.h}
+\subsection{Structures}
+\subsubsection{s21\_dictionary\_t}
+\begin{lstlisting}[language=C]
+typedef struct s21_dictionary_t {
+    char** key;
+    char** values;
+    int lastElement;
+    int len;
+} s21_dictionary_t;
+\end{lstlisting}
+The structure \texttt{s21\_dictionary\_t} is a dictionary. It contains two arrays containing the keys and values of the dictionary. Also presented here are the parameters responsible for the maximum length of the dictionary and the index of the last entry.
+\subsection{Functions}
+
+\subsubsection{initialize\_dictionary}
+\begin{lstlisting}[language=C]
+void initialize_dictionary(s21_dictionary_t *dictionary, int maxWordSize, int dictionaryLen) {
+    dictionary->key = calloc(dictionaryLen, sizeof(char *));
+    dictionary->values = calloc(dictionaryLen, sizeof(char *));
+    for (int i = 0; i < dictionaryLen; i++) {
+        dictionary->key[i] = calloc(maxWordSize, sizeof(char));
+        dictionary->values[i] = calloc(maxWordSize, sizeof(char));
+    }
+    dictionary->lastElement = DICTIONARY_FLOOR;
+    dictionary->len = dictionaryLen;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function allocates memory for a dictionary and sets other dictionary values based on the parameters.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_dictionary\_t *dictionary}: pointer to the dictionary.
+    \item \texttt{int maxWordSize}: max word size.
+    \item \texttt{int dictionaryLen}: max dictionary length.
+\end{itemize}
+
+\subsubsection{destroy\_dictionary}
+\begin{lstlisting}[language=C]
+void destroy_dictionary(s21_dictionary_t *dictionary) {
+    for (int i = 0; i < dictionary->len; i++) {
+        free(dictionary->key[i]);
+        free(dictionary->values[i]);
+    }
+    free(dictionary->key);
+    free(dictionary->values);
+    dictionary->key = NULL;
+    dictionary->values = NULL;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function frees memory of a dictionary and sets other dictionary values as NULL so we can detect if it was destroyed properly.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_dictionary\_t *dictionary}: pointer to the dictionary.
+\end{itemize}
+
+\subsubsection{dictionary\_assign\_key\_value}
+\begin{lstlisting}[language=C]
+void dictionary_assign_key_value(s21_dictionary_t *dictionary, char *key, char *value) {
+    int index, keyIndex = dictionary_seek_for_key(dictionary, key);
+    if (keyIndex != -1)
+        index = keyIndex;
+    else {
+        dictionary->lastElement = dictionary->lastElement + 1;
+        index = dictionary->lastElement;
+    }
+    sprintf(dictionary->key[index], "%s", key);
+    sprintf(dictionary->values[index], "%s", value);
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function assigns key and value in the dictionary.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_dictionary\_t *dictionary}: pointer to the dictionary.
+    \item \texttt{char *key}: pointer to the key.
+    \item \texttt{char *key}: pointer to the value.
+\end{itemize}
+
+\subsubsection{dictionary\_seek\_for\_key}
+\begin{lstlisting}[language=C]
+int dictionary_seek_for_key(s21_dictionary_t *dictionary, char *key) {
+    int result = -1;
+    for (int i = 0; i <= dictionary->lastElement && result == -1; i++) {
+        if (strcmp(dictionary->key[i], key) == 0) result = i;
+    }
+    return result;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function performs search for index of key.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_dictionary\_t *dictionary}: pointer to the dictionary.
+    \item \texttt{char *key}: pointer to the key.
+\end{itemize}
+\textbf{Return value}:
+\begin{itemize}
+    \item \texttt{int result}: index of the key.
+\end{itemize}
+
+\subsubsection{dictionary\_get\_value}
+\begin{lstlisting}[language=C]
+char *dictionary_get_value(s21_dictionary_t *dictionary, char *key) {
+    int index = dictionary_seek_for_key(dictionary, key);
+    return index != -1 ? dictionary->values[index] : NULL;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function performs search for value of key.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_dictionary\_t *dictionary}: pointer to the dictionary.
+    \item \texttt{char *key}: pointer to the key.
+\end{itemize}
+\textbf{Return value}:
+\begin{itemize}
+    \item \texttt{char* value}: pointer to the value.
+\end{itemize}
+
+\subsection{Important information}
+This is unsafe library. You need to validate all the parameters before sending them to this library.
+
+\section{stack.h}
+\subsection{Structures}
+\subsubsection{s21\_stack\_t}
+\begin{lstlisting}[language=C]
+typedef struct s21_stack_t {
+    double *array;
+    int top_index;
+} s21_stack_t;
+\end{lstlisting}
+The structure \texttt{s21\_stack\_t} is a stack. It contains arrays containing the values in stack. There is also top index parameter so we know what element is on top.
+\subsection{Functions}
+
+\subsubsection{stack\_create}
+\begin{lstlisting}[language=C]
+int stack_create(s21_stack_t *stack, int size) {
+    int res = size < 1;
+    if (res == 0) {
+        stack->array = calloc(size, sizeof(double));
+        if (stack == NULL) res = 2;
+        stack->top_index = STACK_FLOOR;
+    }
+    return res;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function allocates memory for a stack and sets top index as -1\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_stack\_t *stack}: pointer to the stack.
+    \item \texttt{int size}: max size of stack.
+\end{itemize}
+\textbf{Return value}:
+\begin{itemize}
+    \item \texttt{int res}: Zero if created successfully. One if not.
+\end{itemize}
+
+\subsubsection{stack\_delete}
+\begin{lstlisting}[language=C]
+int stack_delete(s21_stack_t *stack) {
+    int res = stack->array == NULL;
+    if (res == 0) {
+        free(stack->array);
+        stack->array = NULL;
+    }
+    return res;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function frees memory of a stack.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_stack\_t *stack}: pointer to the stack.
+\end{itemize}
+\textbf{Return value}:
+\begin{itemize}
+    \item \texttt{int res}: Zero if destroyed successfully. One if not.
+\end{itemize}
+
+\subsubsection{stack\_push}
+\begin{lstlisting}[language=C]
+void stack_push(s21_stack_t *stack, double src) {
+    stack->top_index = stack->top_index + 1;
+    stack->array[stack->top_index] = src;
+} 
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function pushes value to the stack.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_stack\_t *stack}: pointer to the stack.
+    \item \texttt{double src}: value.
+\end{itemize}
+
+\subsubsection{stack\_pop}
+\begin{lstlisting}[language=C]
+int stack_pop(s21_stack_t *stack) {
+    int res = stack->top_index == STACK_FLOOR;
+    if (res == 0) stack->top_index--;
+    return res;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function pops value from the stack.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_stack\_t *stack}: pointer to the stack.
+\end{itemize}
+
+\subsubsection{stack\_peek}
+\begin{lstlisting}[language=C]
+double stack_peek(s21_stack_t *stack) { return stack->array[stack->top_index]; }
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function returns top value of stack.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_stack\_t *stack}: pointer to the stack.
+\end{itemize}
+\textbf{Return value}:
+\begin{itemize}
+    \item \texttt{double value}: Top value of stack.
+\end{itemize}
+
+\subsubsection{stack\_peek\_and\_pop}
+\begin{lstlisting}[language=C]
+double stack_peek_and_pop(s21_stack_t *stack) {
+    double result = stack_peek(stack);
+    stack_pop(stack);
+    return result;
+}
+\end{lstlisting}
+\noindent
+\textbf{Description}: This function returns top value of stack and pops it.\\\\
+\textbf{Parameters}:
+\begin{itemize}
+    \item \texttt{s21\_stack\_t *stack}: pointer to the stack.
+\end{itemize}
+\textbf{Return value}:
+\begin{itemize}
+    \item \texttt{double value}: Top value of stack.
+\end{itemize}
+
+\end{document}
